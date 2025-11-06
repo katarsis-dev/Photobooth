@@ -212,8 +212,6 @@ const PhotoBoothApp = {
       count--;
       if (count > 0) {
         this.elements.countdownEl.textContent = count;
-      } else if (count === 0) {
-        this.elements.countdownEl.textContent = "SMILE!";
       } else {
         clearInterval(timer);
         this.elements.countdownEl.style.display = "none";
