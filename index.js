@@ -40,14 +40,12 @@ const PhotoBoothApp = {
   },
 
   init() {
-    console.log("Halaman siap, PhotoBoothApp.init() dipanggil.");
     this.cacheElements();
     this.preloadFrames();
     this.attachListeners();
     this.setupKamera();
   },
   cacheElements() {
-    console.log("Caching DOM elements...");
     this.elements.video = document.getElementById("webcam");
     this.elements.cameraPanel = document.getElementById("camera-panel");
     this.elements.cameraSelect = document.getElementById("camera-select");
@@ -70,7 +68,6 @@ const PhotoBoothApp = {
     this.elements.previewCloseBtn = document.getElementById("preview-close");
   },
   preloadFrames() {
-    console.log("Pre-loading frame images...");
     this.frameImages["frame-1-wide.png"].src = "img/frame-1-wide.png";
     this.frameImages["frame-2-vert.png"].src = "img/frame-2-vert.png";
     this.frameImages["frame-2-horiz.png"].src = "img/frame-2-horiz.png";
@@ -80,7 +77,6 @@ const PhotoBoothApp = {
     this.frameImages["frame-4-strip.png"].src = "img/frame-4-strip.png"; // INI HARUS 450x600
   },
   attachListeners() {
-    console.log("Attaching event listeners...");
     this.elements.cameraSelect.addEventListener("change", () => {
       const selectedDeviceId = this.elements.cameraSelect.value;
       this.setupKamera(selectedDeviceId);
@@ -160,13 +156,12 @@ const PhotoBoothApp = {
         this.state.currentStream = stream;
         this.elements.video.onloadedmetadata = () => {
           this.elements.video.play();
-          console.log("Kamera nyala dan siap!");
         };
         if (!deviceId) {
           await this.updateDaftarKamera();
         }
       } catch (error) {
-        console.error("Error pas setup kamera:", error);
+        console.error(error);
         alert(`Gagal akses kamera: ${error.message}`);
       }
     } else {
@@ -256,7 +251,7 @@ const PhotoBoothApp = {
     if (targetBox) {
       targetBox.replaceWith(img);
     } else {
-      console.error("Nggak nemu placeholder!");
+      console.error("placeholder tidak tersedia");
     }
   },
   updateButtonStates() {
@@ -325,7 +320,6 @@ const PhotoBoothApp = {
 
 
   handleFinishClick() {
-    console.log("Tombol 'Selesai' diklik. Membuka modal layout...");
     this.generateLayoutOptions();
     this.showScreen("layout", true);
   },
