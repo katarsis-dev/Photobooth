@@ -415,3 +415,7 @@ body.bg-grainy {
     line-height: 1;
     padding: 0;
 }
+
+footer{
+  border: 2px solid red;
+}
