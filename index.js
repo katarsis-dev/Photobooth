@@ -1,14 +1,103 @@
-
+/*
+  File: script.js
+  VERSI FIX (Async Await) + FITUR HAPUS FOTO
+*/
 
 const PhotoBoothApp = {
+  // --- 1. DATABASE LAYOUT (Pusat Kontrol Lo) ---
+  layouts: {
+    // --- Layout 1 Foto (Canvas 800x600) ---
+    "layout-single": {
+      name: "1 Foto Penuh",
+      count: 1, // HANYA MUNCUL JIKA FOTO = 1
+      frame: "frame-1-wide.png",
+      canvas: { w: 800, h: 600 },
+      holes: [{ x: 10, y: 10, w: 780, h: 580 }],
+    },
+
+    // --- Layout 2 Foto (Canvas 800x600) ---
+    "layout-2-vert": {
+      name: "2 Foto Vertikal",
+      count: 2, // HANYA MUNCUL JIKA FOTO = 2
+      frame: "frame-2-vert.png",
+      canvas: { w: 800, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 780, h: 285 },
+        { x: 10, y: 305, w: 780, h: 285 },
+      ],
+    },
+    "layout-2-horiz": {
+      name: "2 Foto Horizontal",
+      count: 2, // HANYA MUNCUL JIKA FOTO = 2
+      frame: "frame-2-horiz.png",
+      canvas: { w: 800, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 385, h: 580 },
+        { x: 405, y: 10, w: 385, h: 580 },
+      ],
+    },
+
+    // --- Layout 3 Foto ---
+    "layout-3-stack": {
+      name: "3 Foto Tumpuk (Strip)",
+      count: 3, // HANYA MUNCUL JIKA FOTO = 3
+      frame: "frame-3-stack.png", // Frame 450x600
+      canvas: { w: 450, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 430, h: 186.7 },
+        { x: 10, y: 206.7, w: 430, h: 186.7 },
+        { x: 10, y: 403.4, w: 430, h: 186.7 },
+      ],
+    },
+    "layout-3-side": {
+      name: "1 Besar, 2 Kecil",
+      count: 3, // HANYA MUNCUL JIKA FOTO = 3
+      frame: "frame-3-side.png", // Frame 800x600
+      canvas: { w: 800, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 464, h: 580 },
+        { x: 484, y: 10, w: 306, h: 285 },
+        { x: 484, y: 305, w: 306, h: 285 },
+      ],
+    },
+
+    // --- Layout 4 Foto ---
+    "layout-4-grid": {
+      name: "Grid 2x2",
+      count: 4, // HANYA MUNCUL JIKA FOTO = 4
+      frame: "frame-4-grid.png", // Frame 800x600
+      canvas: { w: 800, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 385, h: 285 },
+        { x: 405, y: 10, w: 385, h: 285 },
+        { x: 10, y: 305, w: 385, h: 285 },
+        { x: 405, y: 305, w: 385, h: 285 },
+      ],
+    },
+    "layout-4-strip": {
+      name: "4 Foto Strip",
+      count: 4, // HANYA MUNCUL JIKA FOTO = 4
+      frame: "frame-4-strip.png", // Frame 450x600
+      canvas: { w: 450, h: 600 },
+      holes: [
+        { x: 10, y: 10, w: 430, h: 137.5 },
+        { x: 10, y: 157.5, w: 430, h: 137.5 },
+        { x: 10, y: 305, w: 430, h: 137.5 },
+        { x: 10, y: 452.5, w: 430, h: 137.5 },
+      ],
+    },
+  },
+
+  // --- 2. STATE APLIKASI ---
   state: {
     currentStream: null,
     photos: [],
     photoCountTarget: 0,
     currentFilter: "none",
-    selectedLayout: "",
-    selectedFrame: "",
+    selectedLayoutId: "",
   },
+
+  // --- 3. ELEMEN DOM ---
   elements: {
     video: null,
     cameraPanel: null,
@@ -28,24 +117,26 @@ const PhotoBoothApp = {
     previewModal: null,
     previewImage: null,
     previewCloseBtn: null,
-  },
-  frameImages: {
-    "frame-1-wide.png": new Image(), // 800x600
-    "frame-2-vert.png": new Image(), // 800x600
-    "frame-2-horiz.png": new Image(), // 800x600
-    "frame-3-stack.png": new Image(), // 450x600 
-    "frame-3-side.png": new Image(), // 800x600
-    "frame-4-grid.png": new Image(), // 800x600
-    "frame-4-strip.png": new Image(), // 450x600 
+    previewDeleteBtn: null, // BARU
   },
 
+  // --- 4. CACHE PENYIMPANAN FRAME ---
+  frameImageCache: {},
+
+  // --- FUNGSI INISIALISASI ---
   init() {
+    console.log("Halaman siap, PhotoBoothApp.init() dipanggil.");
     this.cacheElements();
     this.preloadFrames();
     this.attachListeners();
     this.setupKamera();
   },
+
+  /**
+   * Mengambil semua elemen dari DOM
+   */
   cacheElements() {
+    console.log("Caching DOM elements...");
     this.elements.video = document.getElementById("webcam");
     this.elements.cameraPanel = document.getElementById("camera-panel");
     this.elements.cameraSelect = document.getElementById("camera-select");
@@ -66,17 +157,32 @@ const PhotoBoothApp = {
     this.elements.previewModal = document.getElementById("preview-modal");
     this.elements.previewImage = document.getElementById("preview-image");
     this.elements.previewCloseBtn = document.getElementById("preview-close");
+    this.elements.previewDeleteBtn =
+      document.getElementById("preview-delete-btn"); // BARU
   },
+
+  /**
+   * REFACTOR: Otomatis pre-load semua frame dari database 'layouts'
+   */
   preloadFrames() {
-    this.frameImages["frame-1-wide.png"].src = "img/frame-1-wide.png";
-    this.frameImages["frame-2-vert.png"].src = "img/frame-2-vert.png";
-    this.frameImages["frame-2-horiz.png"].src = "img/frame-2-horiz.png";
-    this.frameImages["frame-3-stack.png"].src = "img/frame-3-stack.png"; // INI HARUS 450x600
-    this.frameImages["frame-3-side.png"].src = "img/frame-3-side.png";
-    this.frameImages["frame-4-grid.png"].src = "img/frame-4-grid.png";
-    this.frameImages["frame-4-strip.png"].src = "img/frame-4-strip.png"; // INI HARUS 450x600
+    console.log("Pre-loading frame images...");
+    const frameFiles = new Set(
+      Object.values(this.layouts).map((layout) => layout.frame)
+    );
+
+    frameFiles.forEach((file) => {
+      const img = new Image();
+      img.src = `img/${file}`; // Asumsi semua frame ada di folder 'img/'
+      this.frameImageCache[file] = img;
+    });
+    console.log("Frame cache dibuat:", this.frameImageCache);
   },
+
+  /**
+   * Memasang semua event listener
+   */
   attachListeners() {
+    console.log("Attaching event listeners...");
     this.elements.cameraSelect.addEventListener("change", () => {
       const selectedDeviceId = this.elements.cameraSelect.value;
       this.setupKamera(selectedDeviceId);
@@ -97,20 +203,24 @@ const PhotoBoothApp = {
         this.handleFilterChange(e.target);
       }
     });
-    this.elements.finishButton.addEventListener("click", () =>
-      this.handleFinishClick()
+    this.elements.finishButton.addEventListener(
+      "click",
+      async () => await this.handleFinishClick()
     );
     this.elements.backButton.addEventListener("click", () =>
       this.showScreen("layout", false)
     );
     this.elements.layoutOptions.addEventListener("click", (e) => {
-      if (e.target.classList.contains("btn-layout")) {
-        this.handleLayoutClick(e.target);
+      const button = e.target.closest(".btn-layout");
+      if (button) {
+        this.handleLayoutClick(button);
       }
     });
     this.elements.downloadButton.addEventListener("click", () =>
       this.downloadImage()
     );
+
+    // --- Listener Preview ---
     this.elements.previewCloseBtn.addEventListener("click", () =>
       this.showPreview(false)
     );
@@ -122,7 +232,16 @@ const PhotoBoothApp = {
     this.elements.thumbnailsContainer.addEventListener("click", (e) => {
       this.handleThumbnailClick(e);
     });
+
+    // BARU: Listener untuk Tombol Hapus
+    this.elements.previewDeleteBtn.addEventListener("click", () =>
+      this.handleDeletePhoto()
+    );
   },
+
+  /**
+   * Nampilin atau nyembunyiin modal
+   */
   showScreen(modalName, show) {
     let modalElement =
       modalName === "layout"
@@ -135,7 +254,7 @@ const PhotoBoothApp = {
     }
   },
 
-  // --- (KAMERA & LOGIKA FOTO... SAMA) ---
+  // --- (Fungsi Kamera - Nggak berubah) ---
   async setupKamera(deviceId = null) {
     if (this.state.currentStream) {
       this.state.currentStream.getTracks().forEach((track) => track.stop());
@@ -156,12 +275,13 @@ const PhotoBoothApp = {
         this.state.currentStream = stream;
         this.elements.video.onloadedmetadata = () => {
           this.elements.video.play();
+          console.log("Kamera nyala dan siap!");
         };
         if (!deviceId) {
           await this.updateDaftarKamera();
         }
       } catch (error) {
-        console.error(error);
+        console.error("Error pas setup kamera:", error);
         alert(`Gagal akses kamera: ${error.message}`);
       }
     } else {
@@ -195,6 +315,8 @@ const PhotoBoothApp = {
       this.elements.cameraSelect.appendChild(option);
     });
   },
+
+  // --- (Fungsi Logika Foto - Nggak berubah) ---
   startCountdownAndSnap() {
     if (this.state.photoCountTarget === 0) {
       alert("Pilih dulu mau ambil berapa foto di panel kanan!");
@@ -212,6 +334,8 @@ const PhotoBoothApp = {
       count--;
       if (count > 0) {
         this.elements.countdownEl.textContent = count;
+      } else if (count === 0) {
+        this.elements.countdownEl.textContent = "SMILE!";
       } else {
         clearInterval(timer);
         this.elements.countdownEl.style.display = "none";
@@ -249,7 +373,7 @@ const PhotoBoothApp = {
     if (targetBox) {
       targetBox.replaceWith(img);
     } else {
-      console.error("placeholder tidak tersedia");
+      console.error("Nggak nemu placeholder!");
     }
   },
   updateButtonStates() {
@@ -316,128 +440,117 @@ const PhotoBoothApp = {
     console.log(`Filter di-set ke: ${this.state.currentFilter}`);
   },
 
-
-  handleFinishClick() {
-    this.generateLayoutOptions();
+  // --- (Fungsi Layout - Nggak berubah) ---
+  async handleFinishClick() {
+    console.log("Tombol 'Selesai' diklik. Membuka modal layout...");
+    this.state.selectedLayoutId = "";
+    await this.generateLayoutOptions();
     this.showScreen("layout", true);
   },
-
-  generateLayoutOptions() {
+  async generateLayoutOptions() {
     this.elements.layoutOptions.innerHTML = "";
-    let layouts = [];
     const count = this.state.photoCountTarget;
+    console.log(`Mencari layout untuk ${count} foto...`);
 
-    const W_WIDE = 800,
-      H_WIDE = 600;
-    const W_TALL = 450,
-      H_TALL = 600;
+    const availableLayouts = Object.keys(this.layouts)
+      .map((key) => ({ id: key, ...this.layouts[key] }))
+      .filter((l) => l.count === count);
 
-    if (count === 1) {
-      layouts = [
-        {
-          id: "layout-single",
-          frame: "frame-1-wide.png",
-          thumb: "img/thumb-1-single.png",
-          w: W_WIDE,
-          h: H_WIDE,
-        },
-      ];
-    } else if (count === 2) {
-      layouts = [
-        {
-          id: "layout-2-vert",
-          frame: "frame-2-vert.png",
-          thumb: "img/thumb-2-vert.png",
-          w: W_WIDE,
-          h: H_WIDE,
-        },
-        {
-          id: "layout-2-horiz",
-          frame: "frame-2-horiz.png",
-          thumb: "img/thumb-2-horiz.png",
-          w: W_WIDE,
-          h: H_WIDE,
-        },
-      ];
-    } else if (count === 3) {
-      layouts = [
-        {
-          id: "layout-3-stack",
-          frame: "frame-3-stack.png",
-          thumb: "img/thumb-3-stack.png",
-          w: W_TALL,
-          h: H_TALL,
-        },
-        {
-          id: "layout-3-side",
-          frame: "frame-3-side.png",
-          thumb: "img/thumb-3-side.png",
-          w: W_WIDE,
-          h: H_WIDE,
-        },
-      ];
-    } else if (count === 4) {
-      layouts = [
-        {
-          id: "layout-4-grid",
-          frame: "frame-4-grid.png",
-          thumb: "img/thumb-4-grid.png",
-          w: W_WIDE,
-          h: H_WIDE,
-        },
-        {
-          id: "layout-4-strip",
-          frame: "frame-4-strip.png",
-          thumb: "img/thumb-4-strip.png",
-          w: W_TALL,
-          h: H_TALL,
-        },
-      ];
+    if (availableLayouts.length === 0) {
+      this.elements.layoutOptions.innerHTML =
+        "<p>Tidak ada layout yang tersedia untuk jumlah foto ini.</p>";
+      console.warn(`Tidak ada layout ditemukan untuk count = ${count}`);
+      return;
     }
 
-    layouts.forEach((layout, index) => {
-      const imgButton = document.createElement("img");
-      imgButton.className = "btn-layout";
-      imgButton.src = layout.thumb;
-      imgButton.dataset.layout = layout.id;
-      imgButton.dataset.frame = layout.frame;
-      imgButton.dataset.width = layout.w;
-      imgButton.dataset.height = layout.h;
+    console.log(`Ditemukan ${availableLayouts.length} layout.`);
 
-      if (index === 0) {
-        imgButton.classList.add("selected");
-        this.state.selectedLayout = layout.id;
-        this.state.selectedFrame = layout.frame;
-        this.handleLayoutClick(imgButton);
+    const layoutButtons = await Promise.all(
+      availableLayouts.map(async (layout, index) => {
+        const frameImage = this.frameImageCache[layout.frame];
+        if (!frameImage) {
+          console.error(`Frame ${layout.frame} tidak ditemukan di cache!`);
+          return null;
+        }
+        if (!frameImage.complete || frameImage.naturalHeight === 0) {
+          try {
+            if (frameImage.naturalHeight === 0) {
+              img.src = `img/${layout.frame}`;
+            }
+            await frameImage.decode();
+          } catch (e) {
+            console.error("Gagal decode frame image:", layout.frame, e);
+            return null;
+          }
+        }
+        const thumbCanvas = document.createElement("canvas");
+        const thumbCtx = thumbCanvas.getContext("2d");
+        const thumbRatio = layout.canvas.w / layout.canvas.h;
+        let thumbW = 100,
+          thumbH = 75;
+        if (thumbRatio > 1.33) {
+          thumbH = 100 / thumbRatio;
+        } else if (thumbRatio < 1.33) {
+          thumbW = 75 * thumbRatio;
+        }
+        thumbCanvas.width = thumbW;
+        thumbCanvas.height = thumbH;
+        thumbCtx.drawImage(frameImage, 0, 0, thumbW, thumbH);
+        const thumbDataUrl = thumbCanvas.toDataURL("image/png");
+        const layoutButton = document.createElement("button");
+        layoutButton.className = "btn-layout";
+        layoutButton.dataset.layout = layout.id;
+        const thumbImg = document.createElement("img");
+        thumbImg.src = thumbDataUrl;
+        layoutButton.appendChild(thumbImg);
+        if (index === 0) {
+          layoutButton.classList.add("selected");
+          this.state.selectedLayoutId = layout.id;
+        }
+        return layoutButton;
+      })
+    );
+
+    layoutButtons.forEach((button) => {
+      if (button) {
+        this.elements.layoutOptions.appendChild(button);
       }
-      this.elements.layoutOptions.appendChild(imgButton);
     });
+
+    if (this.state.selectedLayoutId) {
+      const defaultButton = this.elements.layoutOptions.querySelector(
+        ".btn-layout.selected"
+      );
+      if (defaultButton) {
+        this.handleLayoutClick(defaultButton);
+      }
+    } else {
+      console.warn("Tidak ada layout default terpilih!");
+      this.elements.finalCanvas.width = 450;
+      this.elements.finalCanvas.height = 600;
+      const ctx = this.elements.finalCanvas.getContext("2d");
+      ctx.clearRect(0, 0, 450, 600);
+    }
   },
-
   handleLayoutClick(targetButton) {
-    this.state.selectedLayout = targetButton.dataset.layout;
-    this.state.selectedFrame = targetButton.dataset.frame;
-
-
-    const newWidth = parseInt(targetButton.dataset.width, 10);
-    const newHeight = parseInt(targetButton.dataset.height, 10);
-
-    this.elements.finalCanvas.width = newWidth;
-    this.elements.finalCanvas.height = newHeight;
-
-    console.log(`Kanvas di-set ke ${newWidth}x${newHeight}`);
-
+    const layoutId = targetButton.dataset.layout;
+    const layout = this.layouts[layoutId];
+    if (!layout) return console.error("Layout tidak ditemukan:", layoutId);
+    this.state.selectedLayoutId = layoutId;
+    this.elements.finalCanvas.width = layout.canvas.w;
+    this.elements.finalCanvas.height = layout.canvas.h;
+    console.log(`Kanvas di-set ke ${layout.canvas.w}x${layout.canvas.h}`);
     this.elements.layoutOptions
       .querySelectorAll(".btn-layout")
       .forEach((btn) => btn.classList.remove("selected"));
     targetButton.classList.add("selected");
-
     this.drawToFinalCanvas();
   },
-
   async drawToFinalCanvas() {
     const canvas = this.elements.finalCanvas;
     const ctx = canvas.getContext("2d");
+    const layout = this.layouts[this.state.selectedLayoutId];
+    if (!layout) return console.error("State layout ID tidak valid!");
     const loadedPhotos = await Promise.all(
       this.state.photos.map(
         (src) =>
@@ -448,157 +561,41 @@ const PhotoBoothApp = {
           })
       )
     );
-    const frameImage = this.frameImages[this.state.selectedFrame];
+    const frameImage = this.frameImageCache[layout.frame];
+    canvas.width = layout.canvas.w;
+    canvas.height = layout.canvas.h;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const W = canvas.width; // (800 / 450)
-    const H = canvas.height; // (600)
+    layout.holes.forEach((hole, index) => {
+      if (loadedPhotos[index]) {
+        this.drawCoverImage(
+          ctx,
+          loadedPhotos[index],
+          hole.x,
+          hole.y,
+          hole.w,
+          hole.h
+        );
+      }
+    });
 
-    ctx.clearRect(0, 0, W, H);
-
-    const p = 10; // Padding
-
-    switch (this.state.selectedLayout) {
-      case "layout-single":
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, W - p * 2, H - p * 2); // 780x580
-        break;
-      case "layout-2-vert":
-        const h2v = (H - p * 3) / 2; // 285
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, W - p * 2, h2v); // 780x285
-        if (loadedPhotos[1])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[1],
-            p,
-            h2v + p * 2,
-            W - p * 2,
-            h2v
-          ); // 780x285
-        break;
-      case "layout-2-horiz":
-        const w2h = (W - p * 3) / 2; // 385
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, w2h, H - p * 2); // 385x580
-        if (loadedPhotos[1])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[1],
-            w2h + p * 2,
-            p,
-            w2h,
-            H - p * 2
-          ); // 385x580
-        break;
-      case "layout-3-side":
-        const w3s_big = W * 0.58,
-          w3s_small = W - w3s_big - p * 3; // 464, 306 (approx)
-        const h3s_small = (H - p * 3) / 2; // 285
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, w3s_big, H - p * 2); // 464x580
-        if (loadedPhotos[1])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[1],
-            w3s_big + p * 2,
-            p,
-            w3s_small,
-            h3s_small
-          ); // 306x285
-        if (loadedPhotos[2])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[2],
-            w3s_big + p * 2,
-            h3s_small + p * 2,
-            w3s_small,
-            h3s_small
-          ); // 306x285
-        break;
-      case "layout-4-grid":
-        const w4g = (W - p * 3) / 2,
-          h4g = (H - p * 3) / 2; // 385, 285
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, w4g, h4g);
-        if (loadedPhotos[1])
-          this.drawCoverImage(ctx, loadedPhotos[1], w4g + p * 2, p, w4g, h4g);
-        if (loadedPhotos[2])
-          this.drawCoverImage(ctx, loadedPhotos[2], p, h4g + p * 2, w4g, h4g);
-        if (loadedPhotos[3])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[3],
-            w4g + p * 2,
-            h4g + p * 2,
-            w4g,
-            h4g
-          );
-        break;
-
-      case "layout-3-stack":
-        const h3s = (H - p * 4) / 3; // 186.6
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, W - p * 2, h3s); // 430x186
-        if (loadedPhotos[1])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[1],
-            p,
-            h3s + p * 2,
-            W - p * 2,
-            h3s
-          ); // 430x186
-        if (loadedPhotos[2])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[2],
-            p,
-            h3s * 2 + p * 3,
-            W - p * 2,
-            h3s
-          ); // 430x186
-        break;
-      case "layout-4-strip":
-        const h4s = (H - p * 5) / 4; // 137.5
-        if (loadedPhotos[0])
-          this.drawCoverImage(ctx, loadedPhotos[0], p, p, W - p * 2, h4s); // 430x137.5
-        if (loadedPhotos[1])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[1],
-            p,
-            h4s + p * 2,
-            W - p * 2,
-            h4s
-          ); // 430x137.5
-        if (loadedPhotos[2])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[2],
-            p,
-            h4s * 2 + p * 3,
-            W - p * 2,
-            h4s
-          ); // 430x137.5
-        if (loadedPhotos[3])
-          this.drawCoverImage(
-            ctx,
-            loadedPhotos[3],
-            p,
-            h4s * 3 + p * 4,
-            W - p * 2,
-            h4s
-          ); // 430x137.5
-        break;
-    }
-
-    if (frameImage && frameImage.complete) {
-      ctx.drawImage(frameImage, 0, 0, W, H);
+    if (frameImage && frameImage.complete && frameImage.naturalHeight !== 0) {
+      ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
     } else {
-     alert("terjadinKesalahan")
+      console.error(`Frame image ${layout.frame} belum ke-load atau error!`);
+      ctx.strokeStyle = "red";
+      ctx.lineWidth = 5;
+      ctx.strokeRect(0, 0, canvas.width, canvas.height);
+      ctx.font = "30px Arial";
+      ctx.fillStyle = "red";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        "Gagal memuat frame PNG!",
+        canvas.width / 2,
+        canvas.height / 2
+      );
     }
   },
-
   drawCoverImage(ctx, img, dx, dy, dWidth, dHeight) {
     const imgRatio = img.width / img.height;
     const boxRatio = dWidth / dHeight;
@@ -615,20 +612,20 @@ const PhotoBoothApp = {
     }
     ctx.drawImage(img, sx, sy, sWidth, sHeight, dx, dy, dWidth, dHeight);
   },
-
   downloadImage() {
     const dataUrl = this.elements.finalCanvas.toDataURL("image/png");
     const link = document.createElement("a");
     link.href = dataUrl;
-    link.download = `photobooth-70s-${Date.now()}.png`;
+    link.download = `self-photobooth-${Date.now()}.png`;
     link.click();
   },
+
   showPreview(show) {
     if (show) {
       this.elements.previewModal.classList.add("active");
     } else {
       this.elements.previewModal.classList.remove("active");
-      this.elements.previewImage.src = "";
+      this.elements.previewImage.src = ""; 
     }
   },
   handleThumbnailClick(e) {
@@ -637,6 +634,47 @@ const PhotoBoothApp = {
       this.elements.previewImage.src = e.target.src;
       this.showPreview(true);
     }
+  },
+
+ 
+  handleDeletePhoto() {
+    if (!confirm("Yakin mau hapus foto ini?")) {
+      return;
+    }
+
+    const srcToDelete = this.elements.previewImage.src;
+    if (!srcToDelete) return;
+
+    const indexToDelete = this.state.photos.indexOf(srcToDelete);
+    if (indexToDelete > -1) {
+      this.state.photos.splice(indexToDelete, 1);
+      console.log("Foto dihapus dari state. Sisa:", this.state.photos.length);
+    } else {
+      console.error("Gagal nemuin foto di state!");
+      return;
+    }
+
+
+    const allThumbnails =
+      this.elements.thumbnailsContainer.querySelectorAll("img");
+    let thumbnailReplaced = false;
+
+    allThumbnails.forEach((img) => {
+      if (img.src === srcToDelete) {
+        const placeholder = document.createElement("div");
+        placeholder.className = "thumb-placeholder";
+        img.replaceWith(placeholder);
+        thumbnailReplaced = true;
+      }
+    });
+
+    if (!thumbnailReplaced) {
+      console.error("Gagal nemuin thumbnail di UI untuk diganti!");
+    }
+
+    this.showPreview(false);
+
+    this.updateButtonStates();
   },
 };
 

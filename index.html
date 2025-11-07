@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SelfPBooth</title>
+    <title>Self PhotoBooth</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -33,7 +33,7 @@
       </div>
 
       <div class="controls">
-        <h1>SelfPBooth</h1>
+        <h1>Self PhotoBooth</h1>
 
         <div class="panel" id="camera-panel" style="display: none">
           <h2>Pilih Kamera</h2>
@@ -89,7 +89,7 @@
     <div id="layout-screen" class="layout-modal">
       <div class="layout-content">
         <h2>Hampir Selesai!</h2>
-        <p>Pilih layout & frame favoritmu.</p>
+        <p>Pilih layout</p>
 
         <div id="layout-options"></div>
 
@@ -106,10 +106,13 @@
     </div>
     <div id="preview-modal" class="layout-modal">
       <button id="preview-close" class="preview-close-btn">&times;</button>
-
-      <div class="preview-content">
-        <img id="preview-image" src="" alt="Preview Foto" />
-      </div>
+    
+    <button id="preview-delete-btn" class="preview-delete-btn" title="Hapus foto ini">
+        <i class="fas fa-trash-alt"></i> </button>
+    
+    <div class="preview-content">
+        <img id="preview-image" src="" alt="Preview Foto">
+    </div>
 
     </div>
     <script src="index.js"></script>
